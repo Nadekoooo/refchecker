@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Hasil Prediksi - Referensi Paper</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-50 py-10">
+  <div class="max-w-xl mx-auto bg-white p-6 rounded shadow">
+    <h2 class="text-2xl font-bold mb-4 text-center">Hasil Prediksi</h2>
+    <!-- Menampilkan Prediksi Yes/No -->
+    {% if prediction == "Yes" %}
+      <p class="text-xl font-semibold text-green-600 mb-4">
+        Prediksi: <span class="underline">Paper 1 mereferensi Paper 2</span> (Yes)
+      </p>
+    {% else %}
+      <p class="text-xl font-semibold text-red-600 mb-4">
+        Prediksi: <span class="underline">Paper 1 tidak mereferensi Paper 2</span> (No)
+      </p>
+    {% endif %}
+    <!-- Tabel Fitur-fitur -->
+    <table class="min-w-full divide-y divide-gray-200">
+      <thead class="bg-gray-100">
+        <tr>
+          <th class="px-4 py-2 text-left font-medium text-gray-700">Fitur</th>
+          <th class="px-4 py-2 text-left font-medium text-gray-700">Nilai</th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-gray-200">
+        <tr>
+          <td class="px-4 py-2 text-gray-800">Text Similarity</td>
+          <td class="px-4 py-2 text-gray-800">{{ text_similarity }}</td>
+        </tr>
+        <tr>
+          <td class="px-4 py-2 text-gray-800">Year Difference</td>
+          <td class="px-4 py-2 text-gray-800">{{ year_diff }}</td>
+        </tr>
+        <tr>
+          <td class="px-4 py-2 text-gray-800">Author Overlap</td>
+          <td class="px-4 py-2 text-gray-800">{{ author_overlap }}</td>
+        </tr>
+        {% if probability %}
+        <tr>
+          <td class="px-4 py-2 text-gray-800">Prediction Probability</td>
+          <td class="px-4 py-2 text-gray-800">{{ probability }}</td>
+        </tr>
+        {% endif %}
+      </tbody>
+    </table>
+    <!-- Tombol kembali untuk uji lagi -->
+    <div class="mt-6 text-center">
+      <a href="{% url 'upload' %}" class="text-blue-600 hover:underline">Coba dengan paper lain &rarr;</a>
+    </div>
+  </div>
+</body>
+</html>
