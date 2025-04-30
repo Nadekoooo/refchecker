@@ -138,6 +138,9 @@ def compute_chunk_similarity_features(text1, text2, chunk_size=20, overlap=10):
     }
     # If embedding model is not available or either text is empty, return zeros
     if embedder is None or not text1 or not text2:
+        print(text1)
+        print(text2)
+        print("jawa")
         return features
     # Split both texts into overlapping chunks
     chunks1 = chunk_text(text1, chunk_size=chunk_size, overlap=overlap)
