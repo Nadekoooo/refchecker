@@ -11,6 +11,7 @@ from django.http import JsonResponse
 from transformers import AutoTokenizer, AutoModel
 from sentence_transformers import SentenceTransformer
 from sklearn.metrics.pairwise import cosine_similarity
+import pickle
 
 # 1) Load metadata
 BASE_DIR    = os.path.dirname(__file__)
@@ -20,6 +21,13 @@ try:
 except Exception:
     metadata_df = pd.DataFrame()
     print(f"Warning: cannot load metadata at {METADATA_FP}")
+    
+    
+# load precomputed group stats
+with open(os.path.join(BASE_DIR,'..', 'models', 'paper_stats.pkl'), 'rb') as f:
+    PAPER_STATS = pickle.load(f)
+with open(os.path.join(BASE_DIR, '..','models', 'ref_stats.pkl'), 'rb') as f:
+    REF_STATS = pickle.load(f)
 
 # 2) Device & Specter for doc‐level embeddings
 device    = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -41,6 +49,15 @@ except Exception:
     xgb_model = xgb.Booster()
     xgb_model.load_model(MODEL_FP)
     print("Loaded XGBoost Booster fallback")
+    
+
+if hasattr(xgb_model, "feature_names_in_"):
+    MODEL_FEATURES = list(xgb_model.feature_names_in_)
+elif hasattr(xgb_model, "feature_names"):
+    MODEL_FEATURES = list(xgb_model.feature_names)
+else:
+    MODEL_FEATURES = []
+
 
 def compute_doc_meta_features(paper_id1, paper_id2, text1, text2):
     """
@@ -126,7 +143,7 @@ def compute_doc_meta_features(paper_id1, paper_id2, text1, text2):
 
     return feats
 
-def chunk_text(text, chunk_size=20, overlap=10):
+def chunk_text(text, chunk_size=25, overlap=10):
     words = text.split()
     overlap = min(overlap, chunk_size-1)
     chunks, i = [], 0
@@ -135,12 +152,12 @@ def chunk_text(text, chunk_size=20, overlap=10):
         i += chunk_size - overlap
     return chunks
 
-def compute_chunk_similarity_features(text1, text2, chunk_size=20, overlap=10):
+def compute_chunk_similarity_features(text1, text2, chunk_size=25, overlap=10):
     feats = {
-        'max_chunk_sim_20_10':  0.0,
-        'mean_chunk_sim_20_10': 0.0,
-        'std_chunk_sim_20_10':  0.0,
-        'frac_above80_20_10':   0.0,
+        'max_chunk_sim_25_10':  0.0,
+        'mean_chunk_sim_25_10': 0.0,
+        'std_chunk_sim_25_10':  0.0,
+        'frac_above80_25_10':   0.0,
         'avg_chunk_sim':        0.0,
         'max_chunk_sim':        0.0,
         'chunk_sim_variance':   0.0,
@@ -161,10 +178,10 @@ def compute_chunk_similarity_features(text1, text2, chunk_size=20, overlap=10):
 
     max1 = simm.max(axis=1)
     if max1.size:
-        feats['max_chunk_sim_20_10']  = float(max1.max())
-        feats['mean_chunk_sim_20_10'] = float(max1.mean())
-        feats['std_chunk_sim_20_10']  = float(max1.std())
-        feats['frac_above80_20_10']   = float((max1 >= 0.8).mean())
+        feats['max_chunk_sim_25_10']  = float(max1.max())
+        feats['mean_chunk_sim_25_10'] = float(max1.mean())
+        feats['std_chunk_sim_25_10']  = float(max1.std())
+        feats['frac_above80_25_10']   = float((max1 >= 0.8).mean())
 
     all_max = np.hstack((max1, simm.max(axis=0)))
     if all_max.size:
@@ -175,21 +192,41 @@ def compute_chunk_similarity_features(text1, text2, chunk_size=20, overlap=10):
     return feats
 
 def upload_and_predict(request):
-    if request.method == 'POST':
+    if request.method=='POST':
         f1 = request.FILES.get('suspect_file')
         f2 = request.FILES.get('source_file')
         id1 = os.path.splitext(f1.name)[0] if f1 else ""
         id2 = os.path.splitext(f2.name)[0] if f2 else ""
-        t1  = f1.read().decode('utf-8', errors='ignore') if f1 else ""
-        t2  = f2.read().decode('utf-8', errors='ignore') if f2 else ""
+        t1  = f1.read().decode('utf-8',errors='ignore') if f1 else ""
+        t2  = f2.read().decode('utf-8',errors='ignore') if f2 else ""
 
+        # dynamic features
         meta_feats  = compute_doc_meta_features(id1, id2, t1, t2)
-        chunk_feats = compute_chunk_similarity_features(t1, t2, 20, 10)
-        all_feats   = {**meta_feats, **chunk_feats}
+        chunk_feats = compute_chunk_similarity_features(t1, t2, 25, 10)
 
-        print("Features used:", list(all_feats.keys()))
+        # pull in your TWO dicts
+        p_stats = PAPER_STATS.get(id1, {})
+        r_stats = REF_STATS.get(id2, {})
 
-        X = pd.DataFrame([all_feats]).drop(columns=['paper','referenced_paper'], errors='ignore')
+        # merge everything
+        all_feats = {**meta_feats, **chunk_feats, **p_stats, **r_stats}
+
+        # compute each “_diff{stat}paper” and “_diff{stat}referenced_paper”
+        for base_feat in list(meta_feats.keys()) + list(chunk_feats.keys()):
+            for stat in ["mean","median","max","min","std","var"]:
+                pk = f"{base_feat}_agg{stat}paper"
+                if pk in p_stats:
+                    all_feats[f"{base_feat}_diff{stat}paper"] = all_feats[base_feat] - p_stats[pk]
+                rk = f"{base_feat}_agg{stat}referenced_paper"
+                if rk in r_stats:
+                    all_feats[f"{base_feat}_diff{stat}referenced_paper"] = all_feats[base_feat] - r_stats[rk]
+
+        # build DataFrame & re‐index
+        X = pd.DataFrame([all_feats])
+        if MODEL_FEATURES:
+            X = X.reindex(columns=MODEL_FEATURES, fill_value=0)
+
+        # predict
         try:
             if hasattr(xgb_model, 'predict_proba'):
                 proba = xgb_model.predict_proba(X)
@@ -197,10 +234,11 @@ def upload_and_predict(request):
                 score = float(proba[0][1] if proba.shape[1]>1 else proba[0][0])
             else:
                 dmat  = xgb.DMatrix(X, feature_names=X.columns)
-                score = float(xgb_model.predict(dmat)[0])
-                pred  = 1 if score >= 0.5 else 0
+                p0    = float(xgb_model.predict(dmat)[0])
+                pred  = int(p0>=0.5)
+                score = p0
         except Exception as e:
-            print("Prediction error:", e, all_feats)
+            print("Prediction error:", e)
             pred, score = -1, None
 
         return JsonResponse({'prediction': pred, 'probability': score})
