@@ -8,6 +8,7 @@ import xgboost as xgb
 import joblib
 from sentence_transformers import SentenceTransformer
 import re
+import os
 
 # Load metadata from CSV file
 METADATA_PATH = 'checker/papers_metadata.csv'
@@ -43,10 +44,11 @@ def compute_metadata_features(paper_id_1, paper_id_2):
     """
     features = {'year_diff': 0, 'author_overlap': 0, 'title_similarity': 0.0}
     if metadata_df is None or metadata_df.empty:
+        print(jawa)
         return features
     # Lookup entries for both documents (by ID if available, else by title)
-    row1 = metadata_df[metadata_df['id'] == paper_id_1] if 'id' in metadata_df.columns else pd.DataFrame()
-    row2 = metadata_df[metadata_df['id'] == paper_id_2] if 'id' in metadata_df.columns else pd.DataFrame()
+    row1 = metadata_df[metadata_df['paper_id'] == paper_id_1] if 'paper_id' in metadata_df.columns else pd.DataFrame()
+    row2 = metadata_df[metadata_df['paper_id'] == paper_id_2] if 'paper_id' in metadata_df.columns else pd.DataFrame()
     if row1.empty or row2.empty:
         # Try matching by title (case-insensitive) if IDs did not yield a result
         if 'title' in metadata_df.columns:
@@ -62,10 +64,12 @@ def compute_metadata_features(paper_id_1, paper_id_2):
     # Calculate year_diff
     year1 = meta1.get('year') or meta1.get('Year') or meta1.get('publication_year')
     year2 = meta2.get('year') or meta2.get('Year') or meta2.get('publication_year')
+    print(year1, year2)
+    print("cek taon")
     try:
-        y1, y2 = int(year1), int(year2)
-        features['year_diff'] = abs(y1 - y2)
+        features['year_diff'] = abs(year1 - year2)
     except Exception:
+        print("exc taon")
         features['year_diff'] = 0
     # Calculate author_overlap (common authors count, case-insensitive)
     authors1 = meta1.get('authors') or meta1.get('Authors') or meta1.get('author_names')
@@ -189,11 +193,12 @@ def upload_and_predict(request):
         # Retrieve uploaded files and any provided IDs from the form
         suspicious_file = request.FILES.get('suspect_file')   # suspicious document
         source_file = request.FILES.get('source_file')       # source (original) document
-        suspect_id = request.POST.get('suspect_id')
-        source_id = request.POST.get('source_id')
+        suspect_id = os.path.splitext(suspicious_file.name)[0] if suspicious_file else ""
+        source_id  = os.path.splitext(source_file.name)[0]     if source_file     else ""
         # Read file contents into text strings (assuming text files; adjust if PDFs need parsing)
         suspicious_text = suspicious_file.read().decode('utf-8', errors='ignore') if suspicious_file else ""
         source_text = source_file.read().decode('utf-8', errors='ignore') if source_file else ""
+    
         # 1. Compute metadata features (using provided IDs or file names as identifiers)
         if suspect_id and source_id:
             meta_features = compute_metadata_features(suspect_id, source_id)
