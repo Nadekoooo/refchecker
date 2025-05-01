@@ -57,6 +57,7 @@ elif hasattr(xgb_model, "feature_names"):
     MODEL_FEATURES = list(xgb_model.feature_names)
 else:
     MODEL_FEATURES = []
+    
 
 
 def compute_doc_meta_features(paper_id1, paper_id2, text1, text2):
@@ -192,55 +193,79 @@ def compute_chunk_similarity_features(text1, text2, chunk_size=25, overlap=10):
     return feats
 
 def upload_and_predict(request):
-    if request.method=='POST':
+    if request.method == 'POST':
+        # 1) Read the two uploaded files
         f1 = request.FILES.get('suspect_file')
         f2 = request.FILES.get('source_file')
         id1 = os.path.splitext(f1.name)[0] if f1 else ""
         id2 = os.path.splitext(f2.name)[0] if f2 else ""
-        t1  = f1.read().decode('utf-8',errors='ignore') if f1 else ""
-        t2  = f2.read().decode('utf-8',errors='ignore') if f2 else ""
+        t1  = f1.read().decode('utf-8', errors='ignore') if f1 else ""
+        t2  = f2.read().decode('utf-8', errors='ignore') if f2 else ""
 
-        # dynamic features
+        # 2) Compute your dynamic features
         meta_feats  = compute_doc_meta_features(id1, id2, t1, t2)
         chunk_feats = compute_chunk_similarity_features(t1, t2, 25, 10)
 
-        # pull in your TWO dicts
+        # 3) Lookup precomputed group stats
         p_stats = PAPER_STATS.get(id1, {})
         r_stats = REF_STATS.get(id2, {})
 
-        # merge everything
+        # 4) Merge all into a single dict
         all_feats = {**meta_feats, **chunk_feats, **p_stats, **r_stats}
 
-        # compute each “_diff{stat}paper” and “_diff{stat}referenced_paper”
+        # 5) Build the diff‐features on the fly
         for base_feat in list(meta_feats.keys()) + list(chunk_feats.keys()):
-            for stat in ["mean","median","max","min","std","var"]:
-                pk = f"{base_feat}_agg{stat}paper"
-                if pk in p_stats:
-                    all_feats[f"{base_feat}_diff{stat}paper"] = all_feats[base_feat] - p_stats[pk]
-                rk = f"{base_feat}_agg{stat}referenced_paper"
-                if rk in r_stats:
-                    all_feats[f"{base_feat}_diff{stat}referenced_paper"] = all_feats[base_feat] - r_stats[rk]
+            for stat in ("mean","median","max","min","std","var"):
+                kp = f"{base_feat}_agg{stat}paper"
+                if kp in p_stats:
+                    all_feats[f"{base_feat}_diff{stat}paper"] = all_feats[base_feat] - p_stats[kp]
+                kr = f"{base_feat}_agg{stat}referenced_paper"
+                if kr in r_stats:
+                    all_feats[f"{base_feat}_diff{stat}referenced_paper"] = all_feats[base_feat] - r_stats[kr]
 
-        # build DataFrame & re‐index
+        # 6) Assemble into DataFrame, reindex to model’s expected features
         X = pd.DataFrame([all_feats])
         if MODEL_FEATURES:
             X = X.reindex(columns=MODEL_FEATURES, fill_value=0)
-
-        # predict
+        print(X)
+        # 7) Run the prediction
         try:
             if hasattr(xgb_model, 'predict_proba'):
                 proba = xgb_model.predict_proba(X)
-                pred  = int(xgb_model.predict(X)[0])
-                score = float(proba[0][1] if proba.shape[1]>1 else proba[0][0])
+                # ambil probabilitas kelas 1
+                score = float(proba[0][1]) if proba.shape[1] > 1 else float(proba[0][0])
+                # gunakan threshold yang lebih rendah, misal 0.1
+                threshold = 0.0001
+                print(score)
+                pred = 1 if score >= threshold else 0
             else:
                 dmat  = xgb.DMatrix(X, feature_names=X.columns)
                 p0    = float(xgb_model.predict(dmat)[0])
-                pred  = int(p0>=0.5)
+                pred  = int(p0 >= 0.25)
                 score = p0
         except Exception as e:
             print("Prediction error:", e)
             pred, score = -1, None
 
-        return JsonResponse({'prediction': pred, 'probability': score})
+        # 8) Prepare context for result.html
+        ctx = {
+            'prediction': "Yes" if pred == 1 else "No",
+            'probability': score,
+            # core features you want to display:
+            'text_similarity':        all_feats.get('text_similarity'),
+            'year_diff':              all_feats.get('year_diff'),
+            'can_cite':               all_feats.get('can_cite'),
+            'same_year':              all_feats.get('same_year'),
+            'cited_by_count_paper':   all_feats.get('cited_by_count_paper'),
+            'cited_by_count_ref':     all_feats.get('cited_by_count_ref'),
+            'cited_by_count_ratio':   all_feats.get('cited_by_count_ratio'),
+            'author_overlap':         all_feats.get('author_overlap'),
+            'concept_overlap':        all_feats.get('concept_overlap'),
+            'same_type':              all_feats.get('same_type'),
+            'title_similarity':       all_feats.get('title_similarity'),
+            'contains_citation_text': all_feats.get('contains_citation_text'),
+        }
+        return render(request, 'result.html', ctx)
 
+    # GET: show upload form
     return render(request, 'upload.html')

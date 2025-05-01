@@ -3,31 +3,122 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Upload Papers - Prediksi Referensi</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Upload Papers</title>
   <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap');
+    body {
+      font-family: 'Inter', sans-serif;
+    }
+    .file-upload-btn {
+      position: relative;
+      overflow: hidden;
+    }
+    .file-upload-btn input[type=file] {
+      position: absolute;
+      top: 0;
+      right: 0;
+      min-width: 100%;
+      min-height: 100%;
+      font-size: 100px;
+      text-align: right;
+      filter: alpha(opacity=0);
+      opacity: 0;
+      outline: none;
+      cursor: pointer;
+      display: block;
+    }
+    .spinner {
+      animation: spin 1s linear infinite;
+    }
+    @keyframes spin {
+      from {
+        transform: rotate(0deg);
+      }
+      to {
+        transform: rotate(360deg);
+      }
+    }
+    .loading-overlay {
+      backdrop-filter: blur(3px);
+      background-color: rgba(0, 0, 0, 0.5);
+    }
+  </style>
 </head>
-<body class="bg-gray-50 py-10">
-  <div class="max-w-xl mx-auto bg-white p-6 rounded shadow">
-    <h1 class="text-2xl font-bold mb-4 text-center">Upload Dua Paper</h1>
-    <form method="post" enctype="multipart/form-data" class="space-y-4">
-      {% csrf_token %}
-      <!-- Field untuk Paper 1 -->
-      <div>
-        <label for="id_paper1" class="block font-medium text-gray-700 mb-1">Paper 1:</label>
-        <input type="file" name="suspect_file" id="id_paper1" required
-               class="block w-full text-sm text-gray-900 border border-gray-300 rounded-lg cursor-pointer focus:outline-none focus:border-blue-500" />
-      </div>
-      <!-- Field untuk Paper 2 -->
-      <div>
-        <label for="id_paper2" class="block font-medium text-gray-700 mb-1">Paper 2:</label>
-        <input type="file" name="source_file"  id="id_paper2" required
-               class="block w-full text-sm text-gray-900 border border-gray-300 rounded-lg cursor-pointer focus:outline-none focus:border-blue-500" />
-      </div>
-      <!-- Tombol Submit -->
-      <button type="submit" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded">
-        Prediksi Apakah Mereferensi
+<body class="bg-black text-white min-h-screen flex flex-col items-center justify-center p-4">
+  <div class="max-w-md w-full">
+    <!-- Logo Area -->
+    <div class="mb-12 text-center">
+      <h1 class="text-4xl font-light tracking-tight mb-1">PaperRef</h1>
+      <p class="text-zinc-400 text-sm">Analyze reference relationships between papers</p>
+    </div>
+    
+    <div class="bg-zinc-900 rounded-xl p-8 mb-10">
+      <form method="post" enctype="multipart/form-data" id="upload-form" onsubmit="showLoading()">
+        {% csrf_token %}
+        
+        <!-- Paper 1 Upload -->
+        <div class="mb-8">
+          <label for="file1_text" class="block text-zinc-400 mb-3">Paper 1</label>
+          <div class="file-upload-btn w-full py-3 px-4 bg-zinc-800 text-white hover:bg-zinc-700 rounded-lg flex items-center justify-center transition-colors cursor-pointer">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+            </svg>
+            <span id="file1_text">Choose File</span>
+            <input type="file" name="suspect_file" id="id_paper1" required onchange="updateFileName(this, 'file1_text')"/>
+          </div>
+        </div>
+        
+        <!-- Paper 2 Upload -->
+        <div>
+          <label for="file2_text" class="block text-zinc-400 mb-3">Paper 2</label>
+          <div class="file-upload-btn w-full py-3 px-4 bg-zinc-800 text-white hover:bg-zinc-700 rounded-lg flex items-center justify-center transition-colors cursor-pointer">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+            </svg>
+            <span id="file2_text">Choose File</span>
+            <input type="file" name="source_file" id="id_paper2" required onchange="updateFileName(this, 'file2_text')"/>
+          </div>
+        </div>
+      </form>
+    </div>
+    
+    <!-- Submit Button -->
+    <div class="text-center">
+      <button 
+        type="submit" 
+        form="upload-form"
+        id="submit-button"
+        class="inline-flex items-center px-8 py-3 bg-white text-black rounded-full hover:bg-gray-200 transition-colors font-medium text-sm"
+      >
+        Analyze References
       </button>
-    </form>
+    </div>
   </div>
+
+  <!-- Loading Overlay -->
+  <div id="loading-overlay" class="fixed inset-0 flex items-center justify-center z-50 loading-overlay hidden">
+    <div class="bg-zinc-900 p-8 rounded-xl flex flex-col items-center">
+      <svg class="spinner h-12 w-12 text-white mb-4" viewBox="0 0 24 24">
+        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none"></circle>
+        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+      </svg>
+      <p class="text-white font-medium">Analyzing papers...</p>
+      <p class="text-zinc-400 text-sm mt-2">This may take a moment</p>
+    </div>
+  </div>
+
+  <script>
+    function updateFileName(input, elementId) {
+      const fileName = input.files[0]?.name || "Choose File";
+      document.getElementById(elementId).textContent = fileName;
+    }
+    
+    function showLoading() {
+      document.getElementById('loading-overlay').classList.remove('hidden');
+      document.getElementById('submit-button').disabled = true;
+    }
+  </script>
 </body>
 </html>

@@ -2,54 +2,108 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Hasil Prediksi - Referensi Paper</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Paper Reference Analysis</title>
   <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap');
+    body {
+      font-family: 'Inter', sans-serif;
+    }
+  </style>
 </head>
-<body class="bg-gray-50 py-10">
-  <div class="max-w-xl mx-auto bg-white p-6 rounded shadow">
-    <h2 class="text-2xl font-bold mb-4 text-center">Hasil Prediksi</h2>
-    <!-- Menampilkan Prediksi Yes/No -->
+<body class="bg-black text-white min-h-screen flex flex-col items-center justify-center p-6">
+  <div class="max-w-2xl w-full">
+    <!-- Logo Area -->
+    <div class="mb-10 text-center">
+      <h1 class="text-4xl font-light tracking-tight mb-1">PaperRef</h1>
+      <p class="text-zinc-400 text-sm">Reference Analysis Results</p>
+    </div>
+    
+    <!-- Prediction Result -->
     {% if prediction == "Yes" %}
-      <p class="text-xl font-semibold text-green-600 mb-4">
-        Prediksi: <span class="underline">Paper 1 mereferensi Paper 2</span> (Yes)
-      </p>
+      <div class="mb-8 p-4 bg-zinc-900 border-l-4 border-green-500 rounded-lg">
+        <p class="text-xl font-light">Paper 1 <span class="text-green-400">references</span> Paper 2</p>
+      </div>
     {% else %}
-      <p class="text-xl font-semibold text-red-600 mb-4">
-        Prediksi: <span class="underline">Paper 1 tidak mereferensi Paper 2</span> (No)
-      </p>
+      <div class="mb-8 p-4 bg-zinc-900 border-l-4 border-red-500 rounded-lg">
+        <p class="text-xl font-light">Paper 1 <span class="text-red-400">does not reference</span> Paper 2</p>
+      </div>
     {% endif %}
-    <!-- Tabel Fitur-fitur -->
-    <table class="min-w-full divide-y divide-gray-200">
-      <thead class="bg-gray-100">
-        <tr>
-          <th class="px-4 py-2 text-left font-medium text-gray-700">Fitur</th>
-          <th class="px-4 py-2 text-left font-medium text-gray-700">Nilai</th>
-        </tr>
-      </thead>
-      <tbody class="divide-y divide-gray-200">
-        <tr>
-          <td class="px-4 py-2 text-gray-800">Text Similarity</td>
-          <td class="px-4 py-2 text-gray-800">{{ text_similarity }}</td>
-        </tr>
-        <tr>
-          <td class="px-4 py-2 text-gray-800">Year Difference</td>
-          <td class="px-4 py-2 text-gray-800">{{ year_diff }}</td>
-        </tr>
-        <tr>
-          <td class="px-4 py-2 text-gray-800">Author Overlap</td>
-          <td class="px-4 py-2 text-gray-800">{{ author_overlap }}</td>
-        </tr>
-        {% if probability %}
-        <tr>
-          <td class="px-4 py-2 text-gray-800">Prediction Probability</td>
-          <td class="px-4 py-2 text-gray-800">{{ probability }}</td>
-        </tr>
-        {% endif %}
-      </tbody>
-    </table>
-    <!-- Tombol kembali untuk uji lagi -->
-    <div class="mt-6 text-center">
-      <a href="{% url 'upload' %}" class="text-blue-600 hover:underline">Coba dengan paper lain &rarr;</a>
+    
+    <!-- Features Table -->
+    <div class="overflow-hidden bg-zinc-900 rounded-xl mb-10">
+      <table class="w-full border-collapse">
+        <thead>
+          <tr class="border-b border-zinc-800">
+            <th class="px-6 py-3 text-left text-xs font-medium text-zinc-400 uppercase tracking-wider">Feature</th>
+            <th class="px-6 py-3 text-left text-xs font-medium text-zinc-400 uppercase tracking-wider">Value</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-zinc-800">
+          <tr>
+            <td class="px-6 py-3 text-zinc-300">Text Similarity</td>
+            <td class="px-6 py-3 font-medium">{{ text_similarity }}</td>
+          </tr>
+          <tr>
+            <td class="px-6 py-3 text-zinc-300">Year Difference</td>
+            <td class="px-6 py-3 font-medium">{{ year_diff }}</td>
+          </tr>
+          <tr>
+            <td class="px-6 py-3 text-zinc-300">Can Cite</td>
+            <td class="px-6 py-3 font-medium">{{ can_cite }}</td>
+          </tr>
+          <tr>
+            <td class="px-6 py-3 text-zinc-300">Same Year</td>
+            <td class="px-6 py-3 font-medium">{{ same_year }}</td>
+          </tr>
+          <tr>
+            <td class="px-6 py-3 text-zinc-300">Cited By Count (Paper)</td>
+            <td class="px-6 py-3 font-medium">{{ cited_by_count_paper }}</td>
+          </tr>
+          <tr>
+            <td class="px-6 py-3 text-zinc-300">Cited By Count (Ref)</td>
+            <td class="px-6 py-3 font-medium">{{ cited_by_count_ref }}</td>
+          </tr>
+          <tr>
+            <td class="px-6 py-3 text-zinc-300">Cited By Ratio</td>
+            <td class="px-6 py-3 font-medium">{{ cited_by_count_ratio }}</td>
+          </tr>
+          <tr>
+            <td class="px-6 py-3 text-zinc-300">Author Overlap</td>
+            <td class="px-6 py-3 font-medium">{{ author_overlap }}</td>
+          </tr>
+          <tr>
+            <td class="px-6 py-3 text-zinc-300">Concept Overlap</td>
+            <td class="px-6 py-3 font-medium">{{ concept_overlap }}</td>
+          </tr>
+          <tr>
+            <td class="px-6 py-3 text-zinc-300">Same Type</td>
+            <td class="px-6 py-3 font-medium">{{ same_type }}</td>
+          </tr>
+          <tr>
+            <td class="px-6 py-3 text-zinc-300">Title Similarity</td>
+            <td class="px-6 py-3 font-medium">{{ title_similarity }}</td>
+          </tr>
+          <tr>
+            <td class="px-6 py-3 text-zinc-300">Contains Citation Text</td>
+            <td class="px-6 py-3 font-medium">{{ contains_citation_text }}</td>
+          </tr>
+          {% if probability is not None %}
+          <tr>
+            <td class="px-6 py-3 text-zinc-300">Prediction Probability</td>
+            <td class="px-6 py-3 font-medium">{{ probability }}</td>
+          </tr>
+          {% endif %}
+        </tbody>
+      </table>
+    </div>
+    
+    <!-- Action Button -->
+    <div class="text-center">
+      <a href="{% url 'upload' %}" class="inline-flex items-center px-8 py-3 bg-white text-black rounded-full hover:bg-gray-200 transition-colors font-medium text-sm">
+        Analyze New Papers
+      </a>
     </div>
   </div>
 </body>
